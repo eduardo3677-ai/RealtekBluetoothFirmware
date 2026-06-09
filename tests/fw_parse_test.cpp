@@ -10,7 +10,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <string>
 #include <vector>
+#include <algorithm>
+#include <dirent.h>
 
 #include "../RealtekBluetoothFirmware/RtlFwParse.h"
 
@@ -34,51 +37,63 @@ static std::vector<uint8_t> readFile(const char *path)
     return data;
 }
 
-int main(int argc, char **argv)
+static void validateV2(const char *name, const std::vector<uint8_t> &fw)
 {
-    const char *path = (argc > 1) ? argv[1] : "fw/rtl8822cu_fw.bin";
-    std::vector<uint8_t> fw = readFile(path);
     const uint8_t *p = fw.data();
     uint32_t len = (uint32_t)fw.size();
-    printf("firmware: %s (%u bytes)\n", path, len);
-
-    CHECK(len > 8 && memcmp(p, "RTBTCore", 8) == 0,
-          "v2 signature 'RTBTCore' present");
 
     int pid = rtlFindProjectId(p, len);
-    CHECK(pid == 13, "project_id == 13 (got %d)", pid);
+    CHECK(pid >= 0, "%s: project id found (%d)", name, pid);
     uint16_t lmp = rtlLmpForProjectId(pid);
-    CHECK(lmp == 0x8822, "lmp_subver for project 13 == 0x8822 (got 0x%04x)", lmp);
-
-    uint32_t numSections = (len >= 20) ? rtlLe32(p + 16) : 0;
-    CHECK(numSections > 0 && numSections < 4096,
-          "num_sections plausible (%u)", numSections);
+    CHECK(lmp != 0, "%s: project %d maps to lmp 0x%04x", name, pid, lmp);
 
     std::vector<RtlSubsecRef> scratch(512);
     std::vector<uint8_t> out(len);
-    bool anyPayload = false;
-    bool allInRange = true;
+    bool anyPayload = false, allInRange = true;
     uint32_t bestRom = 0, bestLen = 0;
-    printf("  rom_version -> payload size (key_id=0):\n");
     for (uint8_t rom = 0; rom < 16; rom++) {
-        uint32_t need = rtlParseFirmwareV2(p, len, rom, 0,
-                                           scratch.data(), 512, NULL, 0);
-        uint32_t got = rtlParseFirmwareV2(p, len, rom, 0,
-                                          scratch.data(), 512, out.data(), len);
+        uint32_t got = rtlParseFirmwareV2(p, len, rom, 0, scratch.data(), 512, out.data(), len);
         if (got > len) allInRange = false;
-        if (got > 0 && got <= len) {
-            anyPayload = true;
-            if (got > bestLen) { bestLen = got; bestRom = rom; }
-        }
-        if (need || got)
-            printf("    %2u -> need %u, wrote %u\n", rom, need, got);
+        if (got > 0 && got <= len) { anyPayload = true; if (got > bestLen) { bestLen = got; bestRom = rom; } }
     }
-    CHECK(allInRange, "no rom_version requires more than fwLen bytes");
-    CHECK(anyPayload, "at least one rom_version yields a payload (best: rom %u, %u bytes)",
-          bestRom, bestLen);
+    CHECK(allInRange, "%s: no rom_version needs more than fwLen", name);
+    CHECK(anyPayload, "%s: a rom_version yields a payload (rom %u, %u bytes)", name, bestRom, bestLen);
+
+    if (strstr(name, "8822cu")) {
+        CHECK(pid == 13 && lmp == 0x8822, "%s: identified as RTL8822C", name);
+    }
+}
+
+int main(int argc, char **argv)
+{
+    const char *dir = (argc > 1) ? argv[1] : "fw";
+
+    DIR *d = opendir(dir);
+    if (!d) { fprintf(stderr, "cannot open dir %s\n", dir); return 2; }
+    std::vector<std::string> files;
+    struct dirent *ent;
+    while ((ent = readdir(d))) {
+        std::string n = ent->d_name;
+        if (n.size() > 4 && n.compare(n.size() - 4, 4, ".bin") == 0)
+            files.push_back(n);
+    }
+    closedir(d);
+    std::sort(files.begin(), files.end());
+
+    int v2count = 0;
+    for (const auto &n : files) {
+        std::string path = std::string(dir) + "/" + n;
+        std::vector<uint8_t> fw = readFile(path.c_str());
+        if (fw.size() > 8 && memcmp(fw.data(), "RTBTCore", 8) == 0) {
+            printf("v2 firmware: %s (%zu bytes)\n", n.c_str(), fw.size());
+            validateV2(n.c_str(), fw);
+            v2count++;
+        }
+    }
+    CHECK(v2count >= 6, "found %d v2 firmware files (expected >= 6)", v2count);
 
     {
-        uint32_t L = bestLen ? bestLen : 1000;
+        uint32_t L = 37268;
         uint32_t frags = rtlFragmentCount(L);
         CHECK(frags == L / 252 + 1, "fragment count for %u bytes == %u", L, frags);
         int j = 0; uint8_t lastIndex = 0;
@@ -92,7 +107,10 @@ int main(int argc, char **argv)
     }
 
     {
-        uint32_t r1 = rtlParseFirmwareV2(p, 4, 3, 0, scratch.data(), 512, out.data(), len);
+        std::vector<RtlSubsecRef> scratch(512);
+        std::vector<uint8_t> out(16);
+        uint8_t junk4[4] = { 0 };
+        uint32_t r1 = rtlParseFirmwareV2(junk4, 4, 3, 0, scratch.data(), 512, out.data(), 16);
         CHECK(r1 == 0, "truncated firmware returns 0");
         std::vector<uint8_t> junk(64, 0xAB);
         int jr = rtlFindProjectId(junk.data(), junk.size());

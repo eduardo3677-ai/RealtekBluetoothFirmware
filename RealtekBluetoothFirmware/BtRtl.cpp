@@ -18,7 +18,12 @@
 OSDefineMetaClassAndStructors(BtRtl, OSObject)
 
 static const RtlIcInfo kIcTable[] = {
-    { RTL_ROM_LMP_8822B, 0x000c, 0x0a, false, true, "rtl8822cu_fw.bin", "rtl8822cu" },
+    { RTL_ROM_LMP_8822B, 0x000c, 0x0a, false, true, "rtl8822cu_fw.bin",    "rtl8822cu" },
+    { RTL_ROM_LMP_8852A, 0x000b, 0x0b, false, true, "rtl8852bu_fw.bin",    "rtl8852bu" },
+    { RTL_ROM_LMP_8852A, 0x000c, 0x0c, false, true, "rtl8852cu_fw_v2.bin", "rtl8852cu" },
+    { RTL_ROM_LMP_8852A, 0x0087, 0x0c, false, true, "rtl8852btu_fw.bin",   "rtl8852btu" },
+    { RTL_ROM_LMP_8851B, 0x000b, 0x0c, false, true, "rtl8851bu_fw.bin",    "rtl8851bu" },
+    { RTL_ROM_LMP_8922A, 0x000a, 0x0c, false, true, "rtl8922au_fw.bin",    "rtl8922au" },
 };
 
 bool BtRtl::

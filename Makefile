@@ -52,7 +52,7 @@ all: $(KEXT)
 test: tests/fw_parse_test.cpp RealtekBluetoothFirmware/RtlFwParse.h
 	@mkdir -p $(BUILD)
 	xcrun clang++ -std=c++14 -Wall -Wextra -O2 -o $(BUILD)/fw_parse_test tests/fw_parse_test.cpp
-	@./$(BUILD)/fw_parse_test fw/rtl8822cu_fw.bin
+	@./$(BUILD)/fw_parse_test fw
 
 $(OBJ):
 	@mkdir -p $(OBJ)
