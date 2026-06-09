@@ -1,0 +1,5 @@
+build/
+reference/
+*.o
+.DS_Store
+tests/

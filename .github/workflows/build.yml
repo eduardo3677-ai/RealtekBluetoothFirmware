@@ -1,0 +1,43 @@
+name: Build RealtekBluetoothFirmware
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          echo "SDK: $(xcrun --sdk macosx --show-sdk-path)"
+
+      - name: Firmware parser unit test
+        run: make test
+
+      - name: Build kext
+        run: make
+
+      - name: Get git hash and kext UUID
+        id: ids
+        run: |
+          echo "hash=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "uuid=$(dwarfdump --uuid build/RealtekBluetoothFirmware.kext/Contents/MacOS/RealtekBluetoothFirmware | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Create artifact zip
+        run: |
+          ditto -c -k --keepParent build/RealtekBluetoothFirmware.kext \
+            "${{ runner.temp }}/RealtekBluetoothFirmware_${{ steps.ids.outputs.hash }}_${{ steps.ids.outputs.uuid }}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RealtekBluetoothFirmware_${{ steps.ids.outputs.hash }}_${{ steps.ids.outputs.uuid }}
+          path: ${{ runner.temp }}/RealtekBluetoothFirmware_${{ steps.ids.outputs.hash }}_${{ steps.ids.outputs.uuid }}.zip

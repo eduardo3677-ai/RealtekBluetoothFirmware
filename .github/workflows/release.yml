@@ -1,0 +1,91 @@
+name: Release RealtekBluetoothFirmware
+
+on:
+  workflow_dispatch:
+    inputs:
+      changelog:
+        description: Change log; use \n for line breaks
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Increment version
+        id: version
+        run: |
+          python3 << 'EOF' >> $GITHUB_OUTPUT
+          import re, sys
+          path = 'RealtekBluetoothFirmware/Info.plist'
+          with open(path) as f:
+              text = f.read()
+          m = re.search(r'<key>CFBundleVersion</key>\s*<string>([0-9.]+)</string>', text)
+          if not m:
+              sys.exit('CFBundleVersion not found')
+          old = m.group(1)
+          parts = old.split('.')
+          new = f'{parts[0]}.{parts[1]}.{int(parts[2]) + 1}'
+          text = re.sub(r'(<key>CFBundleVersion</key>\s*<string>)[0-9.]+(</string>)', fr'\g<1>{new}\g<2>', text)
+          text = re.sub(r'(<key>CFBundleShortVersionString</key>\s*<string>)[0-9.]+(</string>)', fr'\g<1>{new}\g<2>', text)
+          with open(path, 'w') as f:
+              f.write(text)
+          print(f'old={old}')
+          print(f'new={new}')
+          EOF
+
+      - name: Sync kmod_info version
+        run: |
+          sed -i '' "s/\"[0-9][0-9.]*\", _start/\"${{ steps.version.outputs.new }}\", _start/" RealtekBluetoothFirmware/kmod_info.c
+
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add RealtekBluetoothFirmware/Info.plist RealtekBluetoothFirmware/kmod_info.c
+          git commit -m "release: v${{ steps.version.outputs.new }}"
+          git tag "v${{ steps.version.outputs.new }}"
+          git push
+          git push origin "v${{ steps.version.outputs.new }}"
+
+      - name: Build kext
+        run: make
+
+      - name: Get kext UUID
+        id: ids
+        run: |
+          echo "uuid=$(dwarfdump --uuid build/RealtekBluetoothFirmware.kext/Contents/MacOS/RealtekBluetoothFirmware | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Create release zip
+        id: zip
+        run: |
+          zipname="RealtekBluetoothFirmware_v${{ steps.version.outputs.new }}_${{ steps.ids.outputs.uuid }}.zip"
+          ditto -c -k --keepParent build/RealtekBluetoothFirmware.kext "${{ runner.temp }}/$zipname"
+          echo "zipname=$zipname" >> $GITHUB_OUTPUT
+
+      - name: Prepare release notes
+        env:
+          CHANGELOG: ${{ inputs.changelog }}
+        run: |
+          python3 << 'EOF'
+          import os
+          from pathlib import Path
+          changelog = os.environ["CHANGELOG"].replace("\\n", "\n")
+          Path(os.environ["RUNNER_TEMP"], "release-notes.md").write_text(changelog + "\n")
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.new }}
+          name: RealtekBluetoothFirmware v${{ steps.version.outputs.new }}
+          body_path: ${{ runner.temp }}/release-notes.md
+          files: ${{ runner.temp }}/${{ steps.zip.outputs.zipname }}
