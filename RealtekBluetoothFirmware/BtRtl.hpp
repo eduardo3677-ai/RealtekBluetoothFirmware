@@ -55,6 +55,7 @@ struct RtlIcInfo {
     bool        config_needed;
     bool        has_rom_version;
     const char *fw_name;
+    const char *cfg_name;
     const char *hw_info;
 };
 
@@ -80,7 +81,7 @@ private:
     OSData *parseFirmware(uint8_t *fwData, uint32_t fwLen);
     bool downloadFirmware(const uint8_t *data, uint32_t fwLen);
 
-    OSData *requestFirmwareData(const char *fwName);
+    OSData *requestFirmwareData(const char *fwName, bool noWarn = false);
     OSData *firmwareConvertion(OSData *originalFirmware);
 
     USBDeviceController *m_pUSBDeviceController;

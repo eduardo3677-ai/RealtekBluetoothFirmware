@@ -18,12 +18,23 @@
 OSDefineMetaClassAndStructors(BtRtl, OSObject)
 
 static const RtlIcInfo kIcTable[] = {
-    { RTL_ROM_LMP_8822B, 0x000c, 0x0a, false, true, "rtl8822cu_fw.bin",    "rtl8822cu" },
-    { RTL_ROM_LMP_8852A, 0x000b, 0x0b, false, true, "rtl8852bu_fw.bin",    "rtl8852bu" },
-    { RTL_ROM_LMP_8852A, 0x000c, 0x0c, false, true, "rtl8852cu_fw_v2.bin", "rtl8852cu" },
-    { RTL_ROM_LMP_8852A, 0x0087, 0x0c, false, true, "rtl8852btu_fw.bin",   "rtl8852btu" },
-    { RTL_ROM_LMP_8851B, 0x000b, 0x0c, false, true, "rtl8851bu_fw.bin",    "rtl8851bu" },
-    { RTL_ROM_LMP_8922A, 0x000a, 0x0c, false, true, "rtl8922au_fw.bin",    "rtl8922au" },
+    /* v2 (RTBTCore) firmware */
+    { RTL_ROM_LMP_8822B, 0x000c, 0x0a, false, true, "rtl8822cu_fw.bin",    NULL,                   "rtl8822cu" },
+    { RTL_ROM_LMP_8852A, 0x000b, 0x0b, false, true, "rtl8852bu_fw.bin",    NULL,                   "rtl8852bu" },
+    { RTL_ROM_LMP_8852A, 0x000c, 0x0c, false, true, "rtl8852cu_fw_v2.bin", NULL,                   "rtl8852cu" },
+    { RTL_ROM_LMP_8852A, 0x0087, 0x0c, false, true, "rtl8852btu_fw.bin",   NULL,                   "rtl8852btu" },
+    { RTL_ROM_LMP_8851B, 0x000b, 0x0c, false, true, "rtl8851bu_fw.bin",    NULL,                   "rtl8851bu" },
+    { RTL_ROM_LMP_8922A, 0x000a, 0x0c, false, true, "rtl8922au_fw.bin",    NULL,                   "rtl8922au" },
+
+    /* v1 (Realtech) firmware */
+    { RTL_ROM_LMP_8723B, 0x000b, 0x06, false, true, "rtl8723b_fw.bin",     NULL,                   "rtl8723bu" },
+    { RTL_ROM_LMP_8821A, 0x000a, 0x06, false, true, "rtl8821a_fw.bin",     NULL,                   "rtl8821au" },
+    { RTL_ROM_LMP_8821A, 0x000c, 0x08, false, true, "rtl8821c_fw.bin",     "rtl8821c_config.bin",  "rtl8821cu" },
+    { RTL_ROM_LMP_8761A, 0x000a, 0x06, false, true, "rtl8761a_fw.bin",     NULL,                   "rtl8761au" },
+    { RTL_ROM_LMP_8761A, 0x000b, 0x0a, false, true, "rtl8761bu_fw.bin",    "rtl8761bu_config.bin", "rtl8761bu" },
+    { RTL_ROM_LMP_8761A, 0x000e, 0x00, false, true, "rtl8761cu_fw.bin",    "rtl8761cu_config.bin", "rtl8761cu" },
+    { RTL_ROM_LMP_8822B, 0x000b, 0x07, true,  true, "rtl8822b_fw.bin",     "rtl8822b_config.bin",  "rtl8822bu" },
+    { RTL_ROM_LMP_8852A, 0x000a, 0x0b, false, true, "rtl8852au_fw.bin",    NULL,                   "rtl8852au" },
 };
 
 bool BtRtl::
@@ -207,32 +218,35 @@ parseFirmware(uint8_t *fwData, uint32_t fwLen)
         XYLog("firmware is for %04x but this is a %04x\n", lmp, m_icInfo->lmp_subver);
         return NULL;
     }
-    XYLog("firmware project id %d (lmp %04x)\n", project_id, lmp);
+    XYLog("firmware project id %d (lmp %04x, %s)\n", project_id, lmp, isV2 ? "v2" : "v1");
 
-    if (!isV2) {
-        XYLog("v1 epatch firmware is not supported by this build\n");
-        return NULL;
-    }
-
-    size_t scratchBytes = sizeof(RtlSubsecRef) * RTL_MAX_SUBSECS;
-    RtlSubsecRef *scratch = (RtlSubsecRef *)IOMalloc(scratchBytes);
     uint8_t *out = (uint8_t *)IOMalloc(fwLen);
+    if (!out)
+        return NULL;
     OSData *result = NULL;
+    uint32_t len = 0;
 
-    if (scratch && out) {
-        uint32_t len = rtlParseFirmwareV2(fwData, fwLen, m_romVersion, m_keyId,
-                                          scratch, RTL_MAX_SUBSECS, out, fwLen);
-        if (len > 0 && len <= fwLen) {
-            XYLog("parsed firmware payload: %u bytes (rom_version %u key_id %u)\n",
-                  len, m_romVersion, m_keyId);
-            result = OSData::withBytes(out, len);
-        } else {
-            XYLog("firmware v2 parse produced no usable payload (%u)\n", len);
+    if (isV2) {
+        size_t scratchBytes = sizeof(RtlSubsecRef) * RTL_MAX_SUBSECS;
+        RtlSubsecRef *scratch = (RtlSubsecRef *)IOMalloc(scratchBytes);
+        if (scratch) {
+            len = rtlParseFirmwareV2(fwData, fwLen, m_romVersion, m_keyId,
+                                     scratch, RTL_MAX_SUBSECS, out, fwLen);
+            IOFree(scratch, scratchBytes);
         }
+    } else {
+        len = rtlParseFirmwareV1(fwData, fwLen, m_romVersion, out, fwLen);
     }
 
-    if (out)     IOFree(out, fwLen);
-    if (scratch) IOFree(scratch, scratchBytes);
+    if (len > 0 && len <= fwLen) {
+        XYLog("parsed firmware payload: %u bytes (rom_version %u key_id %u)\n",
+              len, m_romVersion, m_keyId);
+        result = OSData::withBytes(out, len);
+    } else {
+        XYLog("firmware parse produced no usable payload (%u)\n", len);
+    }
+
+    IOFree(out, fwLen);
     return result;
 }
 
@@ -300,11 +314,12 @@ firmwareConvertion(OSData *originalFirmware)
 }
 
 OSData *BtRtl::
-requestFirmwareData(const char *fwName)
+requestFirmwareData(const char *fwName, bool noWarn)
 {
     OSData *_fwData = getFWDescByName(fwName);
     if (!_fwData) {
-        XYLog("embedded firmware %s not found\n", fwName);
+        if (!noWarn)
+            XYLog("embedded firmware %s not found\n", fwName);
         return NULL;
     }
     OSData *fwData = firmwareConvertion(_fwData);
@@ -359,6 +374,31 @@ setup()
         XYLog("firmware parse failed\n");
         return false;
     }
+
+    if (m_icInfo->cfg_name && m_keyId == 0) {
+        OSData *cfg = requestFirmwareData(m_icInfo->cfg_name, !m_icInfo->config_needed);
+        if (cfg) {
+            unsigned int pl = payload->getLength();
+            unsigned int cl = cfg->getLength();
+            uint8_t *merged = (uint8_t *)IOMalloc(pl + cl);
+            if (merged) {
+                memcpy(merged, payload->getBytesNoCopy(), pl);
+                memcpy(merged + pl, cfg->getBytesNoCopy(), cl);
+                OSSafeReleaseNULL(payload);
+                payload = OSData::withBytes(merged, pl + cl);
+                IOFree(merged, pl + cl);
+                XYLog("appended config %s (%u bytes)\n", m_icInfo->cfg_name, cl);
+            }
+            OSSafeReleaseNULL(cfg);
+        } else if (m_icInfo->config_needed) {
+            XYLog("mandatory config %s missing\n", m_icInfo->cfg_name);
+            OSSafeReleaseNULL(payload);
+            return false;
+        }
+    }
+
+    if (!payload)
+        return false;
 
     bool ok = downloadFirmware((const uint8_t *)payload->getBytesNoCopy(),
                                payload->getLength());

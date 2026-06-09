@@ -172,6 +172,43 @@ static inline uint32_t rtlParseFirmwareV2(const uint8_t *fw, uint32_t fwLen,
     return total;
 }
 
+static inline uint32_t rtlParseFirmwareV1(const uint8_t *fw, uint32_t fwLen,
+                                          uint8_t romVersion,
+                                          uint8_t *out, uint32_t outCap)
+{
+    if (fwLen < 14)
+        return 0;
+    uint16_t num_patches = rtlLe16(fw + 12);
+    uint32_t meta = 14 + (uint32_t)num_patches * 8;
+    if (fwLen < meta)
+        return 0;
+
+    const uint8_t *chip_id_base = fw + 14;
+    const uint8_t *len_base = chip_id_base + 2u * num_patches;
+    const uint8_t *off_base = len_base + 2u * num_patches;
+
+    uint32_t patch_offset = 0, patch_length = 0;
+    for (uint16_t i = 0; i < num_patches; i++) {
+        uint16_t chip_id = rtlLe16(chip_id_base + i * 2);
+        if (chip_id == (uint16_t)(romVersion + 1)) {
+            patch_length = rtlLe16(len_base + i * 2);
+            patch_offset = rtlLe32(off_base + i * 4);
+            break;
+        }
+    }
+
+    if (patch_offset == 0 || patch_length < 4)
+        return 0;
+    if ((uint64_t)patch_offset + patch_length > fwLen)
+        return 0;
+    if (out == NULL || outCap < patch_length)
+        return patch_length;
+
+    memcpy(out, fw + patch_offset, patch_length - 4);
+    memcpy(out + patch_length - 4, fw + 8, 4);   /* append fw_version */
+    return patch_length;
+}
+
 static inline uint32_t rtlFragmentCount(uint32_t len)
 {
     return len / 252 + 1;

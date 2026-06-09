@@ -4,24 +4,34 @@ On Realtek combo cards the Wi-Fi may be PCIe while the **Bluetooth radio is an
 internal USB device**. This kext matches that USB Bluetooth device and uploads
 its patch firmware.
 
-All controllers that use Realtek's **v2 (`RTBTCore`)** firmware are supported:
+Both Realtek firmware formats are supported — **v2 (`RTBTCore`)** and **v1
+(`Realtech`)**:
 
-| Chip          | lmp_subver | hci_rev | hci_ver | Firmware              |
-|---------------|-----------|---------|---------|-----------------------|
-| RTL8822C/CE   | 0x8822    | 0x000c  | 0x0a    | `rtl8822cu_fw.bin`    |
-| RTL8851B      | 0x8851    | 0x000b  | 0x0c    | `rtl8851bu_fw.bin`    |
-| RTL8852B      | 0x8852    | 0x000b  | 0x0b    | `rtl8852bu_fw.bin`    |
-| RTL8852C      | 0x8852    | 0x000c  | 0x0c    | `rtl8852cu_fw_v2.bin` |
-| RTL8852BT/BE-VT | 0x8852  | 0x0087  | 0x0c    | `rtl8852btu_fw.bin`   |
-| RTL8922A      | 0x8922    | 0x000a  | 0x0c    | `rtl8922au_fw.bin`    |
+| Chip            | lmp_subver | hci_rev | hci_ver | Firmware              | Format |
+|-----------------|-----------|---------|---------|-----------------------|--------|
+| RTL8822C/CE     | 0x8822    | 0x000c  | 0x0a    | `rtl8822cu_fw.bin`    | v2 |
+| RTL8851B        | 0x8851    | 0x000b  | 0x0c    | `rtl8851bu_fw.bin`    | v2 |
+| RTL8852B        | 0x8852    | 0x000b  | 0x0b    | `rtl8852bu_fw.bin`    | v2 |
+| RTL8852C        | 0x8852    | 0x000c  | 0x0c    | `rtl8852cu_fw_v2.bin` | v2 |
+| RTL8852BT/BE-VT | 0x8852    | 0x0087  | 0x0c    | `rtl8852btu_fw.bin`   | v2 |
+| RTL8922A        | 0x8922    | 0x000a  | 0x0c    | `rtl8922au_fw.bin`    | v2 |
+| RTL8723B        | 0x8723    | 0x000b  | 0x06    | `rtl8723b_fw.bin`     | v1 |
+| RTL8821A        | 0x8821    | 0x000a  | 0x06    | `rtl8821a_fw.bin`     | v1 |
+| RTL8821C        | 0x8821    | 0x000c  | 0x08    | `rtl8821c_fw.bin` + config | v1 |
+| RTL8761A        | 0x8761    | 0x000a  | 0x06    | `rtl8761a_fw.bin`     | v1 |
+| RTL8761B/BUV    | 0x8761    | 0x000b  | 0x0a    | `rtl8761bu_fw.bin` + config | v1 |
+| RTL8761C        | 0x8761    | 0x000e  | 0x00    | `rtl8761cu_fw.bin` + config | v1 |
+| RTL8822B/BE     | 0x8822    | 0x000b  | 0x07    | `rtl8822b_fw.bin` + config | v1 |
+| RTL8852A/AE     | 0x8852    | 0x000a  | 0x0b    | `rtl8852au_fw.bin`    | v1 |
 
-The USB IDs matched for each chip (vendor `0x0BDA` plus the various module
-vendors) are taken from the Linux `btusb.c` device table and listed in
+The USB IDs matched (vendor `0x0BDA` plus the various module vendors) are taken
+from the Linux `btusb.c` device table — every Realtek BT USB ID is listed in
 `Info.plist`. The actual chip is identified at runtime from its HCI version, so
-a board only needs its USB ID present to be picked up.
+a board only needs its USB ID present to be picked up; an ID whose chip isn't in
+the table above is simply released untouched.
 
-> RTL8852A and older parts (8822B, 8821C, 8723x, 8761x …) ship **v1
-> (`Realtech`)** firmware, which this build does not upload yet.
+> Not yet handled: **RTL8723A** (older non-epatch firmware) and **RTL8723D**
+> (its mandatory config blob is absent from linux-firmware).
 
 ## Finding your device ID
 

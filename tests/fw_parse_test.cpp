@@ -64,6 +64,28 @@ static void validateV2(const char *name, const std::vector<uint8_t> &fw)
     }
 }
 
+static void validateV1(const char *name, const std::vector<uint8_t> &fw)
+{
+    const uint8_t *p = fw.data();
+    uint32_t len = (uint32_t)fw.size();
+
+    int pid = rtlFindProjectId(p, len);
+    CHECK(pid >= 0, "%s: project id found (%d)", name, pid);
+    uint16_t lmp = rtlLmpForProjectId(pid);
+    CHECK(lmp != 0, "%s: project %d maps to lmp 0x%04x", name, pid, lmp);
+
+    std::vector<uint8_t> out(len);
+    bool anyPayload = false, allInRange = true;
+    uint32_t bestRom = 0, bestLen = 0;
+    for (uint8_t rom = 0; rom < 16; rom++) {
+        uint32_t got = rtlParseFirmwareV1(p, len, rom, out.data(), len);
+        if (got > len) allInRange = false;
+        if (got > 0 && got <= len) { anyPayload = true; if (got > bestLen) { bestLen = got; bestRom = rom; } }
+    }
+    CHECK(allInRange, "%s: no rom_version needs more than fwLen", name);
+    CHECK(anyPayload, "%s: a rom_version yields a payload (rom %u, %u bytes)", name, bestRom, bestLen);
+}
+
 int main(int argc, char **argv)
 {
     const char *dir = (argc > 1) ? argv[1] : "fw";
@@ -80,7 +102,7 @@ int main(int argc, char **argv)
     closedir(d);
     std::sort(files.begin(), files.end());
 
-    int v2count = 0;
+    int v2count = 0, v1count = 0;
     for (const auto &n : files) {
         std::string path = std::string(dir) + "/" + n;
         std::vector<uint8_t> fw = readFile(path.c_str());
@@ -88,9 +110,14 @@ int main(int argc, char **argv)
             printf("v2 firmware: %s (%zu bytes)\n", n.c_str(), fw.size());
             validateV2(n.c_str(), fw);
             v2count++;
+        } else if (fw.size() > 8 && memcmp(fw.data(), "Realtech", 8) == 0) {
+            printf("v1 firmware: %s (%zu bytes)\n", n.c_str(), fw.size());
+            validateV1(n.c_str(), fw);
+            v1count++;
         }
     }
     CHECK(v2count >= 6, "found %d v2 firmware files (expected >= 6)", v2count);
+    CHECK(v1count >= 8, "found %d v1 firmware files (expected >= 8)", v1count);
 
     {
         uint32_t L = 37268;
