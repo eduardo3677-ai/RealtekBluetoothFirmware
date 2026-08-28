@@ -1,4 +1,4 @@
-name: Build RealtekBluetoothFirmware
+name: Build RealtekBluetoothFirmware Experimental
 
 on:
   push:
