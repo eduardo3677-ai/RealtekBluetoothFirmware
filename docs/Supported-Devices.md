@@ -16,6 +16,7 @@ Both Realtek firmware formats are supported — **v2 (`RTBTCore`)** and **v1
 | RTL8852BT/BE-VT | 0x8852    | 0x0087  | 0x0c    | `rtl8852btu_fw.bin`   | v2 |
 | RTL8922A        | 0x8922    | 0x000a  | 0x0c    | `rtl8922au_fw.bin`    | v2 |
 | RTL8723B        | 0x8723    | 0x000b  | 0x06    | `rtl8723b_fw.bin`     | v1 |
+| RTL8723D        | 0x8723    | 0x000d  | 0x08    | `rtl8723d_fw.bin` + config | v1 |
 | RTL8821A        | 0x8821    | 0x000a  | 0x06    | `rtl8821a_fw.bin`     | v1 |
 | RTL8821C        | 0x8821    | 0x000c  | 0x08    | `rtl8821c_fw.bin` + config | v1 |
 | RTL8761A        | 0x8761    | 0x000a  | 0x06    | `rtl8761a_fw.bin`     | v1 |
@@ -30,8 +31,7 @@ from the Linux `btusb.c` device table — every Realtek BT USB ID is listed in
 a board only needs its USB ID present to be picked up; an ID whose chip isn't in
 the table above is simply released untouched.
 
-> Not yet handled: **RTL8723A** (older non-epatch firmware) and **RTL8723D**
-> (its mandatory config blob is absent from linux-firmware).
+> Not yet handled: **RTL8723A** (older non-epatch firmware).
 
 ## Finding your device ID
 

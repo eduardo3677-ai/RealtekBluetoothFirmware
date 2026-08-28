@@ -28,6 +28,7 @@ static const RtlIcInfo kIcTable[] = {
 
     /* v1 (Realtech) firmware */
     { RTL_ROM_LMP_8723B, 0x000b, 0x06, false, true, "rtl8723b_fw.bin",     NULL,                   "rtl8723bu" },
+    { RTL_ROM_LMP_8723B, 0x000d, 0x08, false, true, "rtl8723d_fw.bin",     "rtl8723d_config.bin", "rtl8723du" },
     { RTL_ROM_LMP_8821A, 0x000a, 0x06, false, true, "rtl8821a_fw.bin",     NULL,                   "rtl8821au" },
     { RTL_ROM_LMP_8821A, 0x000c, 0x08, false, true, "rtl8821c_fw.bin",     "rtl8821c_config.bin",  "rtl8821cu" },
     { RTL_ROM_LMP_8761A, 0x000a, 0x06, false, true, "rtl8761a_fw.bin",     NULL,                   "rtl8761au" },
